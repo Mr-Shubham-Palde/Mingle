@@ -1,7 +1,8 @@
 const express = require("express");
 const connectDB = require("./config/database")
-const validator = require("validator")
 
+const { validateSignUpData } = require("./utils/validation")
+const bcrypt = require("bcrypt")
 const User = require("./models/user")
 
 const app = express();
@@ -10,23 +11,57 @@ app.use(express.json())
 app.post("/signup", async (req, res) => {
 
     try {
-        const data = req.body;
+        //validating the data
+        validateSignUpData(req)
+        const { firstName, lastName, emailid, password } = req.body
+        //encrypt the password and then store it into the database
+        const passwordHash = await bcrypt.hash(password, 10)
 
-        const user = new User(data)
+        const user = new User({ firstName, lastName, emailid, password: passwordHash })
         await user.save()
         res.send("User added to database successfully")
 
-    } catch (error) {
-        res.status(500).send("Error in saving the user")
+    } catch (err) {
+        res.status(500).send("Error in saving the user:" + err.message)
     }
 
 })
 
-app.get("/getalldata",async(req,res)=>{
+app.post("/login", async (req, res) => {
+
+    try {
+
+        const { emailid, password } = req.body
+
+        if (!emailid || !password) {
+            return res.status(400).json({ error: "Invalid Credentials" });
+        }
+
+        const user = await User.findOne({ emailid: emailid })
+
+        if (!user) {
+            throw new Error("Invalid Credentials")
+        }
+
+        const ispasswordvalid = await bcrypt.compare(password, user.password)
+
+        if (ispasswordvalid) {
+            return res.status(200).json({ message: "Login successful" });
+        } else {
+            return res.status(401).json({ error: "Invalid Credentials" });
+        }
+
+    } catch (error) {
+        return res.status(500).send("Error: " + (error.message || error));
+    }
+
+})
+
+app.get("/getalldata", async (req, res) => {
     try {
         const alldata = await User.find()
         res.send(alldata)
-        
+
     } catch (error) {
         res.status(500).send("Error in fetching the data")
     }
@@ -34,17 +69,17 @@ app.get("/getalldata",async(req,res)=>{
 
 // get the user by emailid
 
-app.get("/user",async(req,res)=>{
+app.get("/user", async (req, res) => {
     const useremail = req.body.emailid;
 
     try {
-        const user = await User.findOne({emailid:useremail})
-        if (user.length===0){
+        const user = await User.findOne({ emailid: useremail })
+        if (user.length === 0) {
             return res.status(404).send("User not found")
-        }else{
+        } else {
             res.send(user)
         }
-        
+
     } catch (error) {
         res.status(500).send("Error in accessing  the user")
 
@@ -52,10 +87,10 @@ app.get("/user",async(req,res)=>{
 })
 
 //delete the user by the id 
-app.delete("/deleteuser",async(req,res)=>{
+app.delete("/deleteuser", async (req, res) => {
     try {
         const userid = req.body.userid
-        
+
         const user = await User.findByIdAndDelete(userid)
         res.send("User deleted successfully")
     } catch (error) {
@@ -67,30 +102,30 @@ app.delete("/deleteuser",async(req,res)=>{
 //update the user
 
 app.patch("/updateuser", async (req, res) => {
-  try {
-    const { userid, ...data } = req.body;
-    if (!userid) return res.status(400).send("userid is required");
+    try {
+        const { userid, ...data } = req.body;
+        if (!userid) return res.status(400).send("userid is required");
 
-    const allowed_updates = ["photoUrl", "about", "skills", "age", "gender"];
-    const isupdateallowed = Object.keys(data).every((k) => allowed_updates.includes(k));
+        const allowed_updates = ["photoUrl", "about", "skills", "age", "gender"];
+        const isupdateallowed = Object.keys(data).every((k) => allowed_updates.includes(k));
 
-    if (!isupdateallowed) {
-      return res.status(400).send("Invalid updates!"); // <-- return added
+        if (!isupdateallowed) {
+            return res.status(400).send("Invalid updates!"); // <-- return added
+        }
+
+        const updatedUser = await User.findByIdAndUpdate(
+            userid,
+            data,
+            { runValidators: true, new: true }
+        );
+
+        if (!updatedUser) return res.status(404).send("User not found");
+
+        res.send("User updated successfully");
+    } catch (error) {
+        console.error("Update error:", error);
+        res.status(500).send("Error in updating the user");
     }
-
-    const updatedUser = await User.findByIdAndUpdate(
-      userid,
-      data,
-      { runValidators: true, new: true }
-    );
-
-    if (!updatedUser) return res.status(404).send("User not found");
-
-    res.send("User updated successfully");
-  } catch (error) {
-    console.error("Update error:", error);
-    res.status(500).send("Error in updating the user");
-  }
 });
 
 
