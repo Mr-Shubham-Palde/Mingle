@@ -1,5 +1,6 @@
 const express = require("express");
 const connectDB = require("./config/database")
+const validator = require("validator")
 
 const User = require("./models/user")
 
@@ -9,7 +10,6 @@ app.use(express.json())
 app.post("/signup", async (req, res) => {
 
     try {
-        console.log(req.body)
         const data = req.body;
 
         const user = new User(data)
@@ -66,18 +66,33 @@ app.delete("/deleteuser",async(req,res)=>{
 
 //update the user
 
-app.patch("/updateuser",async(req,res)=>{
-    try {
-        const data = req.body;
-        const userid = req.body.userid
+app.patch("/updateuser", async (req, res) => {
+  try {
+    const { userid, ...data } = req.body;
+    if (!userid) return res.status(400).send("userid is required");
 
-        await User.findByIdAndUpdate({_id:userid},data)
-        res.send("User updated successfully")
-        
-    } catch (error) {
-        res.status(500).send("Error in updating the user")
+    const allowed_updates = ["photoUrl", "about", "skills", "age", "gender"];
+    const isupdateallowed = Object.keys(data).every((k) => allowed_updates.includes(k));
+
+    if (!isupdateallowed) {
+      return res.status(400).send("Invalid updates!"); // <-- return added
     }
-})
+
+    const updatedUser = await User.findByIdAndUpdate(
+      userid,
+      data,
+      { runValidators: true, new: true }
+    );
+
+    if (!updatedUser) return res.status(404).send("User not found");
+
+    res.send("User updated successfully");
+  } catch (error) {
+    console.error("Update error:", error);
+    res.status(500).send("Error in updating the user");
+  }
+});
+
 
 
 
