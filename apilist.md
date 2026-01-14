@@ -13,8 +13,8 @@ get/profile/view //done
  Api for status like accepted,rejected,ignore,intereseted
  
  ## connectionrequestrouter
- post/request/send/interested/:user_id
- post/request/send/ignored/:user_id
+ post/request/send/interested/:user_id //done
+ post/request/send/ignored/:user_id //done
  post /request/review/accepted/:requestId
  post /request/review/rejected/:requestId
 
