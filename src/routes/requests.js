@@ -48,4 +48,43 @@ requestRouter.post("/request/send/:status/:toUserId", userAuth, async (req, res)
         return res.status(500).send("Error: " + (error.message || error));
     }
 })
+
+requestRouter.post("/request/review/:status/:requestId", userAuth, async (req, res) => {
+    try{
+        const loggedInUser = req.user;
+        const { status, requestId } = req.params;
+
+
+
+        const allowedStatus = ["accepted","rejected"];
+        if(!allowedStatus.includes(status)){
+            return res.status(400).json({message:"Status not allowed"});
+        }
+
+        const connectionRequest = await ConnectionRequest.findOne({_id:requestId, toUserId:loggedInUser._id,
+            status:"interested"
+        })
+
+        if(!connectionRequest){
+            return res.status(404).json({message:"Connection request not found or already reviewed"});
+        }
+
+        connectionRequest.status = status;
+
+        const data = await connectionRequest.save();
+        return res.status(200).json({message:"Connection request "+ status, data});
+
+        // first of all validate the status 
+        // Akshay is sending the connection request to  we have to checked whether is elon is logged in user or not 
+        // loggedInId == toUserId
+        // status = interested
+        // request id should be valid 
+
+    }
+    catch(error){
+        return res.status(500).send("Error: " + (error.message || error));
+    }
+})
+
+
 module.exports = requestRouter;
