@@ -3,6 +3,7 @@ const userRouter = express.Router();
 
 const { userAuth } = require("../middleware/auth");
 const ConnectionRequest = require("../models/connectionRequest");
+const User = require("../models/user");
 const USER_SAFE_DATA = "firstName lastName photoUrl age gender about skills "
 
 userRouter.get("/user/requests/received",userAuth,async (req,res) => {
@@ -38,7 +39,7 @@ userRouter.get("/user/connections",userAuth,async(req,res)=>{
             }
             return row.fromUserId;
         })
-        return res.status(200).json({ data});
+        return res.status(200).json({data});
 
     }
     catch(error){
@@ -46,7 +47,44 @@ userRouter.get("/user/connections",userAuth,async(req,res)=>{
     }
 })
 
+userRouter.get("/feed",userAuth,async(req,res)=>{
+    try{
+        const loggedInUser = req.user;
+        const page = parseInt(req.query.page) ||1 
+        let limit = parseInt(req.query.limit) || 10 ;
+        limit = limit>50?50 :limit;
+        const skip = (page - 1) * limit;
+        //user should see all the cards but should not see the cards of the users who have sent connection requests to him/her and also should not see the cards of the users to whom he/she has sent connection requests and his own card should also not be visible to him/her
+        //0.his own cars
+        //1.his connections
+        //2. ignored people
+        //3. already sent the connection request
 
+
+        const connectionRequests = await ConnectionRequest.find({
+            $or:[
+                { fromUserId: loggedInUser._id },
+                { toUserId: loggedInUser._id }
+            ]
+        }).select("fromUserId toUserId")
+
+        const hideUsersFromFeed = new Set();
+        connectionRequests.forEach((request) => {
+            hideUsersFromFeed.add(request.fromUserId.toString());
+            hideUsersFromFeed.add(request.toUserId.toString());
+        }) 
+
+        const users = await User.find({
+           $and:[ {_id: { $nin: Array.from(hideUsersFromFeed)}},
+            { _id: { $ne: loggedInUser._id } }],
+        }).select(USER_SAFE_DATA).skip(skip).limit(limit)
+        res.json({ data: users });
+
+    }
+    catch(error){
+        return res.status(400).send("Error: " + (error.message || error));
+    }
+})
 
 
 module.exports = userRouter;
